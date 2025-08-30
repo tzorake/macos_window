@@ -8,13 +8,13 @@
 #include <string>
 
 // Define proper types
-typedef struct objc_object *id;
-typedef struct objc_selector *SEL;
-typedef struct objc_class *Class;
-typedef unsigned long NSUInteger;
-typedef void (*IMP)(void);
-typedef double CGFloat;
-typedef struct CGContext *CGContextRef;
+using ObjcObject = objc_object*;
+using ObjcSelector = objc_selector*;
+using ObjcClass = objc_class*;
+using ObjcMethodImplementation = void (*)(void);
+using NSUInteger = unsigned long;
+using CGFloat = double;
+using CGContextRef = CGContext*;
 
 // Define NSRect structure and related constants
 struct NSRect
@@ -75,21 +75,21 @@ NSSize NSMakeSize(double width, double height)
 
 // Safe Objective-C message sending wrapper
 template<typename ReturnType, typename... Args>
-ReturnType sendMessage(id receiver, const char* selectorName, Args... args)
+ReturnType sendMessage(ObjcObject receiver, const char* selectorName, Args... args)
 {
-    SEL selector = sel_registerName(selectorName);
-    return ((ReturnType(*)(id, SEL, Args...))objc_msgSend)(receiver, selector, args...);
+    ObjcSelector selector = sel_registerName(selectorName);
+    return ((ReturnType(*)(ObjcObject, ObjcSelector, Args...))objc_msgSend)(receiver, selector, args...);
 }
 
 template<typename ReturnType, typename... Args>
-ReturnType sendClassMessage(Class cls, const char* selectorName, Args... args)
+ReturnType sendClassMessage(ObjcClass cls, const char* selectorName, Args... args)
 {
-    SEL selector = sel_registerName(selectorName);
-    return ((ReturnType(*)(Class, SEL, Args...))objc_msgSend)(cls, selector, args...);
+    ObjcSelector selector = sel_registerName(selectorName);
+    return ((ReturnType(*)(ObjcClass, ObjcSelector, Args...))objc_msgSend)(cls, selector, args...);
 }
 
 // Convenience function to get classes
-Class getClass(const char* className)
+ObjcClass getClass(const char* className)
 {
     return objc_getClass(className);
 }
@@ -117,15 +117,15 @@ void loadImageData()
 }
 
 // The windowShouldClose method implementation
-BOOL windowShouldClose(id self, SEL _cmd, id sender)
+BOOL windowShouldClose(ObjcObject self, ObjcSelector _cmd, ObjcObject sender)
 {
-    id application = sendClassMessage<id>(getClass("NSApplication"), "sharedApplication");
+    ObjcObject application = sendClassMessage<ObjcObject>(getClass("NSApplication"), "sharedApplication");
     sendMessage<void>(application, "terminate:", nullptr);
     return YES;
 }
 
 // Custom view drawRect method
-void drawRect(id self, SEL _cmd, NSRect rect)
+void drawRect(ObjcObject self, ObjcSelector _cmd, NSRect rect)
 {
     if (gImageData.empty())
         return;
@@ -134,8 +134,8 @@ void drawRect(id self, SEL _cmd, NSRect rect)
     NSRect bounds = sendMessage<NSRect>(self, "bounds");
     
     // Get graphics context
-    id context = sendClassMessage<id>(getClass("NSGraphicsContext"), "currentContext");
-    id cgContext = sendMessage<id>(context, "CGContext");
+    ObjcObject context = sendClassMessage<ObjcObject>(getClass("NSGraphicsContext"), "currentContext");
+    ObjcObject cgContext = sendMessage<ObjcObject>(context, "CGContext");
     
     // Cast to CGContextRef
     CGContextRef contextRef = (CGContextRef)cgContext;
@@ -187,23 +187,23 @@ void drawRect(id self, SEL _cmd, NSRect rect)
 }
 
 // Delegate class to handle window close events
-Class createWindowDelegateClass()
+ObjcClass createWindowDelegateClass()
 {
-    Class delegateClass = objc_allocateClassPair(getClass("NSObject"), "WindowDelegate", 0);
+    ObjcClass delegateClass = objc_allocateClassPair(getClass("NSObject"), "WindowDelegate", 0);
     
     // Add windowShouldClose: method
-    SEL windowShouldCloseSel = sel_registerName("windowShouldClose:");
-    class_addMethod(delegateClass, windowShouldCloseSel, (IMP)windowShouldClose, "c@:@");
+    ObjcSelector windowShouldCloseSel = sel_registerName("windowShouldClose:");
+    class_addMethod(delegateClass, windowShouldCloseSel, (ObjcMethodImplementation)windowShouldClose, "c@:@");
     objc_registerClassPair(delegateClass);
     return delegateClass;
 }
 
 // Create content view class
-Class createContentViewClass()
+ObjcClass createContentViewClass()
 {
-    Class contentViewClass = objc_allocateClassPair(getClass("NSView"), "ContentView", 0);
-    SEL drawRectSel = sel_registerName("drawRect:");
-    class_addMethod(contentViewClass, drawRectSel, (IMP)drawRect, "v@:{CGRect={CGPoint=dd}{CGSize=dd}}");
+    ObjcClass contentViewClass = objc_allocateClassPair(getClass("NSView"), "ContentView", 0);
+    ObjcSelector drawRectSel = sel_registerName("drawRect:");
+    class_addMethod(contentViewClass, drawRectSel, (ObjcMethodImplementation)drawRect, "v@:{CGRect={CGPoint=dd}{CGSize=dd}}");
     objc_registerClassPair(contentViewClass);
     return contentViewClass;
 }
@@ -214,11 +214,11 @@ int main()
     loadImageData();
     
     // Get shared application
-    id application = sendClassMessage<id>(getClass("NSApplication"), "sharedApplication");
+    ObjcObject application = sendClassMessage<ObjcObject>(getClass("NSApplication"), "sharedApplication");
     sendMessage<void>(application, "setActivationPolicy:", AppActivation::Regular);
 
     // Calculate window position (center of screen)
-    id mainScreen = sendClassMessage<id>(getClass("NSScreen"), "mainScreen");
+    ObjcObject mainScreen = sendClassMessage<ObjcObject>(getClass("NSScreen"), "mainScreen");
     NSRect screenFrame = sendMessage<NSRect>(mainScreen, "frame");
     
     NSRect windowRect = NSMakeRect(
@@ -234,8 +234,8 @@ int main()
         | WindowStyle::Resizable;
 
     // Allocate and initialize window
-    id window = sendClassMessage<id>(getClass("NSWindow"), "alloc");
-    window = sendMessage<id>(
+    ObjcObject window = sendClassMessage<ObjcObject>(getClass("NSWindow"), "alloc");
+    window = sendMessage<ObjcObject>(
         window,
         "initWithContentRect:styleMask:backing:defer:",
         windowRect,
@@ -245,7 +245,7 @@ int main()
     );
     
     // Set title
-    id titleString = sendClassMessage<id>(
+    ObjcObject titleString = sendClassMessage<ObjcObject>(
         getClass("NSString"),
         "stringWithUTF8String:",
         "C++ macOS Window with Image"
@@ -253,21 +253,21 @@ int main()
     sendMessage<void>(window, "setTitle:", titleString);
 
     // Create and set window delegate to handle close events
-    Class delegateClass = createWindowDelegateClass();
-    id delegate = sendClassMessage<id>(delegateClass, "alloc");
-    delegate = sendMessage<id>(delegate, "init");
+    ObjcClass delegateClass = createWindowDelegateClass();
+    ObjcObject delegate = sendClassMessage<ObjcObject>(delegateClass, "alloc");
+    delegate = sendMessage<ObjcObject>(delegate, "init");
     sendMessage<void>(window, "setDelegate:", delegate);
     
     // Get the current content view bounds
-    id contentView = sendMessage<id>(window, "contentView");
+    ObjcObject contentView = sendMessage<ObjcObject>(window, "contentView");
     NSRect contentBounds = sendMessage<NSRect>(contentView, "bounds");
     
     // Instead of creating a separate custom view, let's subclass the content view
-    Class contentViewClass = createContentViewClass();
+    ObjcClass contentViewClass = createContentViewClass();
     
     // Replace the content view
-    id newContentView = sendClassMessage<id>(contentViewClass, "alloc");
-    newContentView = sendMessage<id>(newContentView, "initWithFrame:", contentBounds);
+    ObjcObject newContentView = sendClassMessage<ObjcObject>(contentViewClass, "alloc");
+    newContentView = sendMessage<ObjcObject>(newContentView, "initWithFrame:", contentBounds);
     sendMessage<void>(window, "setContentView:", newContentView);
     sendMessage<void>(newContentView, "setNeedsDisplay:", YES);
     
