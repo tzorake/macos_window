@@ -78,14 +78,14 @@ template<typename ReturnType, typename... Args>
 ReturnType sendMessage(ObjcObject receiver, const char* selectorName, Args... args)
 {
     ObjcSelector selector = sel_registerName(selectorName);
-    return ((ReturnType(*)(ObjcObject, ObjcSelector, Args...))objc_msgSend)(receiver, selector, args...);
+    return reinterpret_cast<ReturnType(*)(ObjcObject, ObjcSelector, Args...)>(objc_msgSend)(receiver, selector, args...);
 }
 
 template<typename ReturnType, typename... Args>
 ReturnType sendClassMessage(ObjcClass cls, const char* selectorName, Args... args)
 {
     ObjcSelector selector = sel_registerName(selectorName);
-    return ((ReturnType(*)(ObjcClass, ObjcSelector, Args...))objc_msgSend)(cls, selector, args...);
+    return reinterpret_cast<ReturnType(*)(ObjcClass, ObjcSelector, Args...)>(objc_msgSend)(cls, selector, args...);
 }
 
 // Convenience function to get classes
@@ -138,7 +138,7 @@ void drawRect(ObjcObject self, ObjcSelector _cmd, NSRect rect)
     ObjcObject cgContext = sendMessage<ObjcObject>(context, "CGContext");
     
     // Cast to CGContextRef
-    CGContextRef contextRef = (CGContextRef)cgContext;
+    CGContextRef contextRef = reinterpret_cast<CGContextRef>(cgContext);
     
     // Draw the image using Core Graphics
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
@@ -157,8 +157,6 @@ void drawRect(ObjcObject self, ObjcSelector _cmd, NSRect rect)
         nullptr
     );
         
-    CGBitmapInfo bitmapInfo = kCGImageAlphaFirst | kCGBitmapByteOrder32Big;
-    
     CGImageRef imageRef = CGImageCreate(
         gImageWidth, 
         gImageHeight, 
@@ -166,7 +164,7 @@ void drawRect(ObjcObject self, ObjcSelector _cmd, NSRect rect)
         32, 
         gImageWidth * 4, 
         colorSpace, 
-        bitmapInfo,
+        kCGImageAlphaFirst | kCGBitmapByteOrder32Big,
         provider, 
         nullptr, 
         NO, 
@@ -193,7 +191,12 @@ ObjcClass createWindowDelegateClass()
     
     // Add windowShouldClose: method
     ObjcSelector windowShouldCloseSel = sel_registerName("windowShouldClose:");
-    class_addMethod(delegateClass, windowShouldCloseSel, (ObjcMethodImplementation)windowShouldClose, "c@:@");
+    class_addMethod(
+        delegateClass, 
+        windowShouldCloseSel, 
+        reinterpret_cast<ObjcMethodImplementation>(windowShouldClose), 
+        "c@:@"
+    );
     objc_registerClassPair(delegateClass);
     return delegateClass;
 }
@@ -203,7 +206,12 @@ ObjcClass createContentViewClass()
 {
     ObjcClass contentViewClass = objc_allocateClassPair(getClass("NSView"), "ContentView", 0);
     ObjcSelector drawRectSel = sel_registerName("drawRect:");
-    class_addMethod(contentViewClass, drawRectSel, (ObjcMethodImplementation)drawRect, "v@:{CGRect={CGPoint=dd}{CGSize=dd}}");
+    class_addMethod(
+        contentViewClass, 
+        drawRectSel, 
+        reinterpret_cast<ObjcMethodImplementation>(drawRect), 
+        "v@:{CGRect={CGPoint=dd}{CGSize=dd}}"
+    );
     objc_registerClassPair(contentViewClass);
     return contentViewClass;
 }
@@ -228,18 +236,13 @@ int main()
         gImageHeight
     );
     
-    NSUInteger styleMask = WindowStyle::Titled 
-        | WindowStyle::Closable 
-        | WindowStyle::Miniaturizable 
-        | WindowStyle::Resizable;
-
     // Allocate and initialize window
     ObjcObject window = sendClassMessage<ObjcObject>(getClass("NSWindow"), "alloc");
     window = sendMessage<ObjcObject>(
         window,
         "initWithContentRect:styleMask:backing:defer:",
         windowRect,
-        styleMask,
+        WindowStyle::Titled | WindowStyle::Closable | WindowStyle::Miniaturizable | WindowStyle::Resizable,
         BackingStore::Buffered,
         NO
     );
@@ -251,7 +254,7 @@ int main()
         "C++ macOS Window with Image"
     );
     sendMessage<void>(window, "setTitle:", titleString);
-
+    
     // Create and set window delegate to handle close events
     ObjcClass delegateClass = createWindowDelegateClass();
     ObjcObject delegate = sendClassMessage<ObjcObject>(delegateClass, "alloc");
