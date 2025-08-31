@@ -4,7 +4,7 @@
 
 This project demonstrates how to create a native macOS application using C++ with direct Objective-C runtime calls. The application displays a procedurally generated gradient image in a custom window without using standard application frameworks.
 
-![Window](image/window.png)
+<video src="preview/window.mp4"></video>
 
 ## Building the Application
 
